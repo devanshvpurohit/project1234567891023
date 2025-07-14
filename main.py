@@ -58,25 +58,42 @@ def compute_bert_similarity(job_desc, resumes):
 # Streamlit UI
 st.title("Automated Resume Shortlisting System")
 
+st.markdown("### Upload Job Description or Paste Manually")
 job_desc_file = st.file_uploader("Upload Job Description (PDF, DOCX, or TXT)", type=["pdf", "docx", "txt"])
+job_desc_text_input = st.text_area("Or paste the job description here")
+
+st.markdown("### Upload Resumes or Paste Manually")
 resume_files = st.file_uploader("Upload Resumes", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+manual_resume_texts = st.text_area("Or paste one or more resumes here (separated by '---')")
 
 method = st.selectbox("Select Matching Method", ["TF-IDF", "BERT"])
 
 if st.button("Shortlist Candidates"):
-    if job_desc_file and resume_files:
-        job_desc_text = extract_text(job_desc_file)
-        resumes_text = [extract_text(file) for file in resume_files]
-
-        if method == "TF-IDF":
-            scores = compute_tfidf_similarity(job_desc_text, resumes_text)
+    if job_desc_file or job_desc_text_input:
+        if job_desc_file:
+            job_desc_text = extract_text(job_desc_file)
         else:
-            scores = compute_bert_similarity(job_desc_text, resumes_text)
+            job_desc_text = job_desc_text_input
 
-        sorted_scores = sorted(zip(resume_files, scores), key=lambda x: x[1], reverse=True)
+        resumes_text = []
+        if resume_files:
+            resumes_text.extend([extract_text(file) for file in resume_files])
 
-        st.subheader("Ranked Resumes")
-        for i, (file, score) in enumerate(sorted_scores):
-            st.write(f"{i+1}. {file.name} - Score: {score:.4f}")
+        if manual_resume_texts:
+            manual_resumes = manual_resume_texts.split("---")
+            resumes_text.extend([res.strip() for res in manual_resumes if res.strip()])
+
+        if not resumes_text:
+            st.warning("Please upload or paste at least one resume.")
+        else:
+            if method == "TF-IDF":
+                scores = compute_tfidf_similarity(job_desc_text, resumes_text)
+            else:
+                scores = compute_bert_similarity(job_desc_text, resumes_text)
+
+            st.subheader("Ranked Resumes")
+            for i, (res_text, score) in enumerate(sorted(zip(resumes_text, scores), key=lambda x: x[1], reverse=True)):
+                st.write(f"{i+1}. Score: {score:.4f}")
+                st.text_area(f"Resume {i+1}", res_text[:1000] + ('...' if len(res_text) > 1000 else ''), height=150)
     else:
-        st.warning("Please upload both job description and resumes.")
+        st.warning("Please upload or paste the job description.")
